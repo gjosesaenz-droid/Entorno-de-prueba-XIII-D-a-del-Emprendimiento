@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { GoogleGenAI } from "@google/genai";
 
@@ -161,100 +161,6 @@ const HeartIcon = () => (
     </svg>
 );
 
-const Chatbot = ({ isChatOpen, setIsChatOpen }) => {
-    const [messages, setMessages] = useState([
-        { sender: 'ai', text: '¡Hola! Soy el asistente virtual del XVIII Día del Emprendimiento. ¿En qué puedo ayudarte?' }
-    ]);
-    const [userInput, setUserInput] = useState('');
-    const [isAiTyping, setIsAiTyping] = useState(false);
-    const chatContainerRef = useRef(null);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-    const eventContext = `
-        Eres un asistente virtual para el "XVIII Día del Emprendimiento" en Melilla. Tu objetivo es responder preguntas sobre el evento de forma amable y concisa.
-        Aquí tienes la información clave del evento:
-        - Propósito: Es un punto de encuentro para 600 jóvenes de Bachillerato, FP y UGR para fomentar el emprendimiento.
-        - Ponentes:
-          1. Guillermo Martínez Gauna-Vivas: Fundador de Ayúdame3D. Ponencia: "Diseñando Ayudas, Imprimiendo Cambios Sociales".
-          2. Paloma Martín: CEO de Hoop Carpool. Ponencia: "Emprender con sentido: Redescubriendo la Inteligencia Colectiva en la Movilidad".
-          3. Pedro Llamas: Cómico. Ponencia: "Emprender es cosa de risa. El humor como motor de la Motivación".
-        - Programa del día:
-          - 09:00: Recepción
-          - 09:30: Inauguración
-          - 09:45: Conferencia de Guillermo Martínez
-          - 10:45: Tentempié
-          - 11:45: Conferencia de Paloma Martín
-          - 12:45: Conferencia de Pedro Llamas
-          - 13:45: Clausura
-        Responde basándote únicamente en esta información. Si te preguntan algo que no sabes, di amablemente que no tienes esa información.
-    `;
-
-    useEffect(() => {
-        if (chatContainerRef.current) {
-            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-        }
-    }, [messages, isAiTyping]);
-
-    const handleSendMessage = async (e) => {
-        e.preventDefault();
-        const trimmedInput = userInput.trim();
-        if (!trimmedInput) return;
-
-        const newMessages = [...messages, { sender: 'user', text: trimmedInput }];
-        setMessages(newMessages);
-        setUserInput('');
-        setIsAiTyping(true);
-
-        try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: trimmedInput,
-                config: {
-                    systemInstruction: eventContext,
-                }
-            });
-            
-            const aiResponse = response.text;
-            setMessages([...newMessages, { sender: 'ai', text: aiResponse }]);
-        } catch (error) {
-            console.error("Error al contactar con la IA:", error);
-            setMessages([...newMessages, { sender: 'ai', text: 'Lo siento, estoy teniendo problemas para conectarme. Por favor, inténtalo de nuevo más tarde.' }]);
-        } finally {
-            setIsAiTyping(false);
-        }
-    };
-    
-    return (
-        <div className={`chatbot-container ${isChatOpen ? 'open' : ''}`}>
-            <div className="chatbot-header">
-                <h3>Asistente Virtual</h3>
-                <button onClick={() => setIsChatOpen(false)}>&times;</button>
-            </div>
-            <div className="chatbot-messages" ref={chatContainerRef}>
-                {messages.map((msg, index) => (
-                    <div key={index} className={`message ${msg.sender}`}>
-                        {msg.text}
-                    </div>
-                ))}
-                {isAiTyping && <div className="message ai typing-indicator"><span></span><span></span><span></span></div>}
-            </div>
-            <form className="chatbot-input" onSubmit={handleSendMessage}>
-                <input
-                    type="text"
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    placeholder="Escribe tu pregunta..."
-                    aria-label="Escribe tu pregunta"
-                />
-                <button type="submit" aria-label="Enviar pregunta">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                </button>
-            </form>
-        </div>
-    );
-};
-
-
 const App = () => {
     const [modal, setModal] = useState(null);
     const [questions, setQuestions] = useState(initialQuestions);
@@ -266,7 +172,6 @@ const App = () => {
     const [newComment, setNewComment] = useState({ centerId: '1', text: '', author: '', email: '' });
     const [isAdmin, setIsAdmin] = useState(false);
     const [isVideoVisible, setIsVideoVisible] = useState(true);
-    const [isChatOpen, setIsChatOpen] = useState(false);
 
     const closeModal = useCallback(() => {
       setModal(null);
@@ -636,13 +541,6 @@ const App = () => {
                 </Modal>
             )}
 
-            <Chatbot isChatOpen={isChatOpen} setIsChatOpen={setIsChatOpen} />
-
-            <button className="fab" onClick={() => setIsChatOpen(true)} aria-label="Abrir asistente virtual">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                </svg>
-            </button>
         </div>
     );
 };
