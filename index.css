@@ -135,6 +135,12 @@ body {
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
 }
 
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
 .btn-primary {
     background-color: var(--primary-blue);
 }
@@ -145,6 +151,10 @@ body {
 
 .btn-red {
     background-color: var(--accent-red);
+}
+
+.btn-teal {
+    background-color: #2CB2BC;
 }
 
 .btn-secondary {
@@ -177,31 +187,17 @@ main {
     text-align: justify;
 }
 
-/* QR Code Section */
-.qr-code-section {
-    display: flex;
-    align-items: center;
-    gap: 25px;
-    background-color: var(--primary-bg);
-    border-color: #dee2e6;
+/* Poster Section */
+.poster-section {
+    margin-bottom: 30px;
 }
 
-.qr-code-svg {
-    width: 120px;
-    height: 120px;
-    flex-shrink: 0;
-}
-
-.qr-code-text h3 {
-    margin: 0 0 8px 0;
-    font-size: 1.2rem;
-    color: var(--primary-blue);
-}
-
-.qr-code-text p {
-    margin: 0;
-    color: var(--text-light);
-    line-height: 1.5;
+.poster-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 
@@ -384,6 +380,89 @@ main {
     grid-row: 2;
     background: #eee;
     border-radius: 2px;
+}
+
+/* Video Card */
+.video-link-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-grow: 1;
+    text-decoration: none;
+    color: var(--primary-blue);
+    width: 100%;
+}
+
+.video-link-container.disabled {
+    cursor: not-allowed;
+}
+
+.video-card .video-thumbnail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    flex-grow: 1;
+    transition: transform 0.3s ease;
+    width: 100%;
+}
+
+.video-link-container:not(.disabled):hover .video-thumbnail {
+    transform: scale(1.05);
+}
+
+.video-card .video-icon {
+    width: 100px;
+    height: 100px;
+    background: #fff;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.video-card .video-icon svg {
+    transition: all 0.3s ease;
+}
+
+.video-link-container:not(.disabled):hover .video-icon {
+    background-color: #2CB2BC;
+    border-color: #2CB2BC;
+    color: var(--white);
+}
+
+.video-link-container:not(.disabled):hover .video-icon svg {
+    stroke: var(--white);
+}
+
+/* Video Card Disabled State */
+.video-card.video-disabled .video-icon {
+    opacity: 0.5;
+}
+
+.video-unavailable-message {
+    padding: 12px 20px;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    background-color: #e9ecef;
+    color: var(--text-light);
+    text-align: center;
+}
+
+
+.admin-toggle-btn {
+    margin-top: 15px;
+    font-size: 0.8rem;
+    padding: 8px 18px;
+    background-color: var(--accent-red);
+}
+
+.admin-toggle-btn:hover {
+    background-color: #a7323f;
 }
 
 /* Centers Card */

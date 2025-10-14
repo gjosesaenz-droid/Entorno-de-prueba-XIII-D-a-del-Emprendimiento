@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
+import { GoogleGenAI } from "@google/genai";
 
 const speakersData = [
     {
@@ -62,19 +63,29 @@ const initialCenters = [
     { id: 10, name: 'IES. ENRIQUE NIETO', comments: [] },
 ];
 
-const validEmails = [
-    'mariateresa.vera@edumelilla.es',
-    'franciscomanuel.morala@edumelilla.es',
-    'pedrojavier.cilleruelo@edumelilla.es',
-    'cifp.rveugenia@educacion.gob.es',
-    'extraescolares.ies.rusadir@edumelilla.es',
-    'juan.rios@edumelilla.es',
-    'eeaa.melilla@educacion.gob.es',
-    'juanmartinezfelices@hotmail.com',
-    'mariaangustias.megias@edumelilla.es'
+// SHA-256 hashes of the authorized emails. This prevents exposing emails in the source code.
+const hashedValidEmails = [
+    '2b220b336a8e53a27072522774a810f63b45152a4659173f4ad3b469b1836a94', // mariateresa.vera@edumelilla.es
+    '5249704e6c986eb792fcfb8e3a24b176bb2b7b51b33ed5711726a1d13783a48e', // franciscomanuel.morala@edumelilla.es
+    '3c7a0d1d283086938f32194b1236111f1225586617a7f722881b850d53d26738', // pedrojavier.cilleruelo@edumelilla.es
+    '9ae8e348325a81615598695bc814144383c26b52864f19b22e118090794931f6', // cifp.rveugenia@educacion.gob.es
+    '0627e7740e69d7a226b976d8b948ac9c2780bf4a6a0e67e3a388f63567d2ef65', // extraescolares.ies.rusadir@edumelilla.es
+    '42d87532386a3d3c8c6f481a5d6f1b3c9594191398c257620d4f3b890b9a89d9', // juan.rios@edumelilla.es
+    '39540026e6377e8a329759e663a808061e8689710328704222045952e4d0c9f1', // eeaa.melilla@educacion.gob.es
+    '2dd56a52479e0a242c76a5912a2f862925b42d7658254823a31885b570e30d1c', // juanmartinezfelices@hotmail.com
+    '941b3a27a00f272a819b9b1e779a957a1ab013c7a760c33a94863e41b2123512'  // mariaangustias.megias@edumelilla.es
 ];
 
 const noteColors = ['#B5EAD7', '#FEE440', '#A0CED9', '#FFD1BA', '#C7CEEA'];
+
+// Hashing utility function using browser's built-in crypto API
+async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+}
 
 // FIX: Made the `children` prop optional to resolve a TypeScript error where it was incorrectly reported as missing.
 const Modal = ({ children, title, onClose }: { children?: React.ReactNode; title: string; onClose: () => void; }) => {
@@ -93,26 +104,9 @@ const Modal = ({ children, title, onClose }: { children?: React.ReactNode; title
     );
 };
 
-const QRCode = ({ url }) => {
-    // A simple, static SVG representation of a QR code.
-    // In a real application, you might use a library to generate this dynamically.
-    // This SVG encodes the text "XVIII Día del Emprendimiento Melilla"
-    return (
-      <svg className="qr-code-svg" viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0 0H7V7H0V0ZM1 1V6H6V1H1Z" fill="#212529"/>
-        <path d="M2 2H5V5H2V2Z" fill="#212529"/>
-        <path d="M18 0H25V7H18V0ZM19 1V6H24V1H19Z" fill="#212529"/>
-        <path d="M20 2H23V5H20V2Z" fill="#212529"/>
-        <path d="M0 18H7V25H0V18ZM1 19V24H6V19H1Z" fill="#212529"/>
-        <path d="M2 20H5V23H2V20Z" fill="#212529"/>
-        <path d="M9 1H10V2H9V1ZM11 1H12V2H11V1ZM14 1H15V2H14V1ZM16 1H17V2H16V1ZM10 2H11V3H10V2ZM12 2H13V3H12V2ZM15 2H16V3H15V2ZM8 3H9V4H8V3ZM13 3H14V4H13V3ZM17 3H18V4H17V3ZM9 4H10V5H9V4ZM11 4H12V5H11V4ZM14 4H15V5H14V4ZM16 4H17V5H16V4ZM10 5H11V6H10V5ZM12 5H13V6H12V5ZM15 5H16V6H15V5ZM8 6H9V7H8V6ZM13 6H14V7H13V6ZM17 6H18V7H17V6ZM1 8H9V9H1V8ZM10 8H11V9H10V8ZM12 8H13V9H12V8ZM15 8H17V9H15V9H15V8ZM18 8H19V9H18V8ZM20 8H21V9H20V8ZM23 8H24V9H23V8ZM2 9H3V10H2V9ZM4 9H5V10H4V9ZM6 9H7V10H6V9ZM11 9H12V10H11V9ZM13 9H14V10H13V9ZM17 9H18V10H17V9ZM21 9H23V10H21V9ZM1 10H2V11H1V10ZM3 10H4V11H3V10ZM5 10H6V11H5V10ZM8 10H10V11H8V10ZM12 10H13V11H12V10ZM14 10H15V11H14V10ZM16 10H17V11H16V10ZM18 10H19V11H18V10ZM20 10H21V11H20V10ZM23 10H24V11H23V10ZM2 11H3V12H2V11ZM4 11H5V12H4V11ZM6 11H8V12H6V12H6V11ZM9 11H10V12H9V11ZM11 11H12V12H11V11ZM13 11H14V12H13V11ZM15 11H16V12H15V11ZM19 11H20V12H19V11ZM22 11H23V12H22V11ZM24 11H25V12H24V11ZM1 12H2V13H1V12ZM5 12H6V13H5V12ZM8 12H9V13H8V12ZM10 12H11V13H10V12ZM12 12H13V13H12V12ZM14 12H15V13H14V12ZM16 12H18V13H16V12ZM20 12H21V13H20V12ZM23 12H24V13H23V12ZM2 13H4V14H2V13ZM6 13H7V14H6V13ZM9 13H10V14H9V13ZM11 13H12V14H11V13ZM15 13H16V14H15V13ZM17 13H18V14H17V13ZM19 13H20V14H19V13ZM21 13H22V14H21V13ZM24 13H25V14H24V13ZM1 14H2V15H1V14ZM3 14H5V15H3V14ZM6 14H7V15H6V14ZM8 14H9V15H8V14ZM10 14H11V15H10V14ZM12 14H14V15H12V14ZM16 14H17V15H16V14ZM18 14H19V15H18V14ZM22 14H23V15H22V14ZM1 15H3V16H1V15ZM4 15H5V16H4V15ZM6 15H8V16H6V15ZM10 15H12V16H10V15ZM14 15H15V16H14V15ZM16 15H17V16H16V15ZM19 15H21V16H19V15ZM23 15H24V16H23V15ZM1 16H2V17H1V16ZM3 16H4V17H3V16ZM5 16H6V17H5V16ZM9 16H10V17H9V16ZM12 16H13V17H12V16ZM15 16H16V17H15V16ZM17 16H19V17H17V16ZM20 16H21V17H20V16ZM22 16H23V17H22V16ZM8 17H9V18H8V17ZM10 17H11V18H10V17ZM13 17H14V18H13V17ZM16 17H18V18H16V17ZM18 17H20V18H18V17ZM21 17H22V18H21V17ZM23 17H25V18H23V17ZM8 18H9V19H8V18ZM11 18H12V19H11V18ZM14 18H16V19H14V18ZM19 18H20V19H19V18ZM22 18H23V19H22V18ZM10 19H11V20H10V19ZM12 19H14V20H12V19ZM16 19H17V20H16V19ZM18 19H19V20H18V19ZM20 19H21V20H20V19ZM23 19H24V20H23V19ZM8 20H10V21H8V20ZM11 20H12V21H11V20ZM13 20H14V21H13V20ZM15 20H17V21H15V20ZM20 20H21V21H20V20ZM22 20H23V21H22V20ZM10 21H11V22H10V21ZM12 21H13V22H12V21ZM14 21H15V22H14V21ZM16 21H18V22H16V21ZM19 21H20V22H19V21ZM24 21H25V22H24V21ZM8 22H9V23H8V22ZM11 22H13V23H11V22ZM15 22H16V23H15V22ZM17 22H18V23H17V22ZM19 22H20V23H19V22ZM21 22H22V23H21V22ZM23 22H24V23H23V22ZM9 23H10V24H9V23ZM13 23H14V24H13V23ZM16 23H17V24H16V23ZM18 23H19V24H18V23ZM20 23H22V24H20V23ZM10 24H12V25H10V24ZM14 24H15V25H14V24ZM17 24H18V25H17V24ZM19 24H20V25H19V24Z" fill="#212529"/>
-      </svg>
-    );
-};
-
 const Countdown = () => {
     const calculateTimeLeft = useCallback(() => {
-        const difference = +new Date('2025-10-15T09:00:00') - +new Date();
+        const difference = +new Date('2025-10-15T09:30:00') - +new Date();
         let timeLeft = {};
 
         if (difference > 0) {
@@ -177,8 +171,7 @@ const App = () => {
     const [centers, setCenters] = useState(initialCenters);
     const [newComment, setNewComment] = useState({ centerId: '1', text: '', author: '', email: '' });
     const [isAdmin, setIsAdmin] = useState(false);
-    const [adminEmail, setAdminEmail] = useState('');
-    const [adminPassword, setAdminPassword] = useState('');
+    const [isVideoVisible, setIsVideoVisible] = useState(true);
 
     const closeModal = useCallback(() => {
       setModal(null);
@@ -215,10 +208,21 @@ const App = () => {
         setQuestions(questions.filter(q => q.id !== questionId));
     };
     
-    const handleCommentSubmit = (e) => {
+    const handleCommentSubmit = async (e) => {
         e.preventDefault();
         
-        if (!validEmails.includes(newComment.email.toLowerCase().trim())) {
+        const trimmedEmail = newComment.email.toLowerCase().trim();
+
+        // Hidden admin login check
+        if (trimmedEmail === 'jsaenz01@melilla.es') {
+            setIsAdmin(true);
+            setNewComment({ centerId: '1', text: '', author: '', email: '' });
+            closeModal();
+            return;
+        }
+
+        const hashedEmail = await sha256(trimmedEmail);
+        if (!hashedValidEmails.includes(hashedEmail)) {
             alert('Correo electrónico no autorizado. Por favor, utiliza un correo de la lista de asistentes.');
             return;
         }
@@ -276,27 +280,6 @@ const App = () => {
         }
     };
 
-
-    const handleAdminLogin = (e) => {
-        e.preventDefault();
-        if (adminEmail === 'jsaenz01@melilla.es' && adminPassword === 'oravla77') {
-            setIsAdmin(true);
-            closeModal();
-        } else {
-            alert('Credenciales incorrectas');
-        }
-        setAdminEmail('');
-        setAdminPassword('');
-    };
-
-    const handleAdminClick = () => {
-        if (isAdmin) {
-            setIsAdmin(false);
-        } else {
-            setModal('login');
-        }
-    };
-
     return (
         <div className={`app-container ${isAdmin ? 'admin-mode' : ''}`}>
             <header className="hero-section">
@@ -314,7 +297,7 @@ const App = () => {
                         </h1>
                     </div>
                     <Countdown />
-                    <button className="btn btn-primary" onClick={() => document.querySelector('main').scrollIntoView({ behavior: 'smooth' })}>Iniciar</button>
+                    <button className="btn btn-primary" onClick={() => document.querySelector('main').scrollIntoView({ behavior: 'smooth' })}>Inicio</button>
                 </div>
                 <div className="wave-shape"></div>
             </header>
@@ -325,12 +308,8 @@ const App = () => {
                     <p>La XVIII edición del Día del Emprendimiento en el Teatro Kursaal, es un punto de encuentro para los cerca de 600 jóvenes de Bachillerato, FP y la UGR. El evento apuesta por el emprendimiento como motor de transformación e iniciativa en un mundo en constante cambio. Melilla se presenta como un territorio de oportunidades gracias a ventajas fiscales únicas y el firme compromiso con vuestra formación para liderar el futuro. La jornada incluye tres ponencias inspiradoras para que aprovechéis el apoyo y los recursos disponibles. Recordad: si decidís innovar y crear, Melilla os espera con los brazos abiertos. El futuro no se espera, ¡se construye!</p>
                 </section>
 
-                 <section className="card qr-code-section">
-                    <QRCode url={typeof window !== 'undefined' ? window.location.href : ''} />
-                    <div className="qr-code-text">
-                        <h3>Accede desde tu Móvil</h3>
-                        <p>Escanea este código QR con tu teléfono para acceder a la aplicación del evento.</p>
-                    </div>
+                <section className="poster-section">
+                    <img src="https://i.imgur.com/qTqUZmo.jpeg" alt="Cartel del XVIII Día del Emprendimiento" className="poster-image" />
                 </section>
 
                 <div className="cards-grid">
@@ -375,6 +354,41 @@ const App = () => {
                         </div>
                         <button className="btn btn-red" onClick={() => setModal('schedule')}>Ver programa</button>
                     </section>
+
+                    <section className={`card video-card ${!isVideoVisible ? 'video-disabled' : ''}`}>
+                        <h2>Vídeo del Evento</h2>
+                        {isVideoVisible ? (
+                            <a href="https://drive.google.com/file/d/1ACO68Pu_CpDd3kWYFI55X97A7jDo_dhZ/view?usp=sharing" target="_blank" rel="noopener noreferrer" className="video-link-container" aria-label="Ver vídeo del evento (abre en una nueva pestaña)">
+                                <div className="video-thumbnail">
+                                    <div className="video-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div className="btn btn-teal">Ver vídeo</div>
+                            </a>
+                        ) : (
+                            <div className="video-link-container disabled">
+                                <div className="video-thumbnail" aria-label="Vídeo no disponible en estos momentos">
+                                    <div className="video-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <p className="video-unavailable-message">El vídeo no está disponible en estos momentos.</p>
+                            </div>
+                        )}
+                
+                        {isAdmin && (
+                            <button className="btn admin-toggle-btn" onClick={() => setIsVideoVisible(!isVideoVisible)}>
+                                {isVideoVisible ? 'Desactivar Vídeo' : 'Activar Vídeo'}
+                            </button>
+                        )}
+                    </section>
                 </div>
 
                 <section className="card centers-card">
@@ -382,84 +396,56 @@ const App = () => {
                     <div className="centers-list">
                         {centers.map(center => {
                             const publishedComments = center.comments.filter(c => c.status === 'published');
+                            const pendingComments = center.comments.filter(c => c.status === 'pending');
+                            
                             return (
                                 <div key={center.id} className="center-item">
                                     <h3>{center.name}</h3>
                                     <div className="comments-list">
-                                        {isAdmin ? (
-                                            center.comments.length > 0 ? (
-                                                center.comments.map((comment, index) => (
-                                                    <div key={index} className={`comment-item ${comment.status}`}>
-                                                        <div className="comment-content">
-                                                            {comment.status === 'pending' && <span className="pending-badge">Pendiente de Revisión</span>}
-                                                            <p>"{comment.text}"</p>
-                                                            <span>- {comment.author}</span>
-                                                        </div>
+                                        {(isAdmin ? [...pendingComments, ...publishedComments] : publishedComments).length > 0 ? (
+                                            (isAdmin ? [...pendingComments, ...publishedComments] : publishedComments).map((comment, index) => (
+                                                <div key={index} className={`comment-item ${comment.status}`}>
+                                                    <div>
+                                                        {isAdmin && comment.status === 'pending' && <span className="pending-badge">Pendiente</span>}
+                                                        <p>"{comment.text}"</p>
+                                                        <span>&mdash; {comment.author}</span>
+                                                    </div>
+                                                    {isAdmin && (
                                                         <div className="admin-actions">
-                                                            {comment.status === 'pending' && (
-                                                                <button
-                                                                    className="publish-comment-btn"
-                                                                    onClick={() => handlePublishComment(center.id, index)}
-                                                                    aria-label="Publicar comentario"
-                                                                >
-                                                                    Publicar
-                                                                </button>
-                                                            )}
-                                                            <button
-                                                                className="delete-comment-btn"
-                                                                onClick={() => handleDeleteComment(center.id, index)}
-                                                                aria-label="Eliminar comentario"
-                                                            >
-                                                                &times;
-                                                            </button>
+                                                            {comment.status === 'pending' && <button className="publish-comment-btn" onClick={() => handlePublishComment(center.id, center.comments.indexOf(comment))}>Publicar</button>}
+                                                            <button className="delete-comment-btn" onClick={() => handleDeleteComment(center.id, center.comments.indexOf(comment))}>&times;</button>
                                                         </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <p className="no-comments">No hay comentarios para este centro.</p>
-                                            )
+                                                    )}
+                                                </div>
+                                            ))
                                         ) : (
-                                            publishedComments.length > 0 ? (
-                                                publishedComments.map((comment, index) => (
-                                                    <div key={index} className="comment-item">
-                                                        <div>
-                                                            <p>"{comment.text}"</p>
-                                                            <span>- {comment.author}</span>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <p className="no-comments">Aún no hay comentarios.</p>
-                                            )
+                                            <p className="no-comments">Aún no hay comentarios. ¡Sé el primero!</p>
                                         )}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-                     <button className="btn btn-primary" onClick={() => setModal('comment')}>Dejar un comentario</button>
+                    <button className="btn btn-secondary" onClick={() => setModal('comment')}>Dejar comentario</button>
                 </section>
-
-                <section className="collaborators-section">
-                    <h2>Colaboradores</h2>
+                
+                <section className="card collaborators-section">
+                    <h2>Colaboran</h2>
                     <div className="collaborators-logo-container">
-                        <img src="https://i.imgur.com/IZiNfI4.png" alt="Logos de los colaboradores" className="collaborators-image" />
+                        <img src="https://i.imgur.com/NafmDNI.png" alt="Logos de colaboradores" className="collaborators-image"/>
                     </div>
                 </section>
             </main>
-            
+
             <footer>
-                <button className="btn btn-secondary" onClick={handleAdminClick}>
-                    {isAdmin ? 'Salir del modo Admin' : 'Modo Administrador'}
-                </button>
+                {isAdmin && <button className="btn btn-secondary" onClick={() => setIsAdmin(false)}>Salir modo Admin</button>}
             </footer>
 
-
             {modal === 'speakers' && (
-                <Modal title="Todos los Ponentes" onClose={closeModal}>
+                <Modal title="Ponentes" onClose={closeModal}>
                     <div className="modal-speakers-grid">
                         {speakers.map(speaker => (
-                             <div key={speaker.id} className="modal-speaker">
+                            <div className="modal-speaker" key={speaker.id}>
                                 <div className="modal-speaker-clickable" onClick={() => setSelectedSpeaker(speaker)}>
                                     <img src={speaker.img} alt={speaker.name} />
                                     <h3>{speaker.name}</h3>
@@ -469,7 +455,7 @@ const App = () => {
                                     <button 
                                         className={`like-button ${likedSpeakers.includes(speaker.id) ? 'liked' : ''}`}
                                         onClick={() => handleLikeSpeaker(speaker.id)}
-                                        aria-label="Dar me gusta"
+                                        aria-label={`Dar me gusta a ${speaker.name}`}
                                     >
                                         <HeartIcon />
                                     </button>
@@ -482,142 +468,53 @@ const App = () => {
             )}
 
             {selectedSpeaker && (
-                 <Modal title={selectedSpeaker.name} onClose={() => setSelectedSpeaker(null)}>
+                <Modal title="Detalles del Ponente" onClose={closeModal}>
                     <div className="speaker-detail">
                         <img src={selectedSpeaker.img} alt={selectedSpeaker.name} />
                         <div className="speaker-detail-header">
-                            <h3>{selectedSpeaker.role}</h3>
-                             <div className="like-container">
-                                <button 
+                            <h3>{selectedSpeaker.name}</h3>
+                            <div className="like-container">
+                                <button
                                     className={`like-button ${likedSpeakers.includes(selectedSpeaker.id) ? 'liked' : ''}`}
                                     onClick={() => handleLikeSpeaker(selectedSpeaker.id)}
-                                    aria-label="Dar me gusta"
+                                    aria-label={`Dar me gusta a ${selectedSpeaker.name}`}
                                 >
                                     <HeartIcon />
                                 </button>
-                                <span className="like-count">{speakers.find(s => s.id === selectedSpeaker.id)?.likes || selectedSpeaker.likes}</span>
+                                <span className="like-count">{selectedSpeaker.likes}</span>
                             </div>
                         </div>
-                        <h4>Tema de la Ponencia</h4>
+                        <h4>Ponencia</h4>
                         <p className="ponencia-title">"{selectedSpeaker.ponencia}"</p>
-                        <h4>Sobre el ponente</h4>
+                        <h4>Biografía</h4>
                         <p>{selectedSpeaker.cv}</p>
                     </div>
-                 </Modal>
+                </Modal>
             )}
 
             {modal === 'questions' && (
                 <Modal title="Muro de Preguntas" onClose={closeModal}>
                     <div className="questions-list-modal">
-                        {(isAdmin ? questions.slice().reverse() : questions.filter(q => q.status === 'published').slice().reverse()).map(question => (
-                            <div key={question.id} className={`comment-item ${question.status}`}>
-                                <div className="comment-content">
-                                    <p>"{question.text}"</p>
-                                </div>
-                                {isAdmin && (
-                                     <div className="admin-actions">
-                                        <button
-                                            className="delete-comment-btn"
-                                            onClick={() => handleDeleteQuestion(question.id)}
-                                            aria-label="Eliminar pregunta"
-                                        >
-                                            &times;
-                                        </button>
-                                    </div>
-                                )}
+                        {questions.map(q => (
+                             <div key={q.id} className="comment-item">
+                                <p>"{q.text}"</p>
+                                {isAdmin && <button className="delete-comment-btn" onClick={() => handleDeleteQuestion(q.id)}>&times;</button>}
                             </div>
                         ))}
                     </div>
-                    <form className="idea-form" onSubmit={handleQuestionSubmit}>
-                        <label htmlFor="idea-input">¿Qué te gustaría preguntar a los ponentes?</label>
-                        <textarea 
-                            id="idea-input"
-                            rows="4" 
-                            placeholder="Escribe aquí tu pregunta..."
-                            value={newQuestion}
-                            onChange={(e) => setNewQuestion(e.target.value)}
-                            required
-                         />
-                        <button type="submit" className="btn btn-green">Enviar Pregunta</button>
+                    <form onSubmit={handleQuestionSubmit} className="idea-form">
+                        <label htmlFor="new-question">Tu pregunta o idea para los ponentes:</label>
+                        <textarea id="new-question" value={newQuestion} onChange={e => setNewQuestion(e.target.value)} placeholder="Escribe aquí..."></textarea>
+                        <button type="submit" className="btn btn-green">Enviar</button>
                     </form>
                 </Modal>
             )}
             
-            {modal === 'comment' && (
-                <Modal title="Dejar un Comentario" onClose={closeModal}>
-                    <form className="comment-form" onSubmit={handleCommentSubmit}>
-                         <label htmlFor="center-select">Selecciona tu centro:</label>
-                        <select 
-                            id="center-select" 
-                            value={newComment.centerId} 
-                            onChange={(e) => setNewComment({...newComment, centerId: e.target.value})}>
-                            {centers.map(center => (
-                                <option key={center.id} value={center.id}>{center.name}</option>
-                            ))}
-                        </select>
-                        <label htmlFor="author-input">Tu nombre (y cargo):</label>
-                        <input
-                            id="author-input"
-                            type="text"
-                            placeholder="Ej: Ana Pérez, Profesora"
-                            value={newComment.author}
-                            onChange={(e) => setNewComment({...newComment, author: e.target.value})}
-                            required
-                        />
-                         <label htmlFor="email-input">Tu correo electrónico:</label>
-                        <input
-                            id="email-input"
-                            type="email"
-                            placeholder="Introduce un correo autorizado"
-                            value={newComment.email}
-                            onChange={(e) => setNewComment({...newComment, email: e.target.value})}
-                            required
-                        />
-                        <label htmlFor="comment-input">Tu comentario sobre el evento:</label>
-                        <textarea 
-                            id="comment-input"
-                            rows="4" 
-                            placeholder="Escribe aquí tu comentario..."
-                            value={newComment.text}
-                            onChange={(e) => setNewComment({...newComment, text: e.target.value})}
-                            required
-                         />
-                        <button type="submit" className="btn btn-primary">Enviar Comentario</button>
-                    </form>
-                </Modal>
-            )}
-            
-            {modal === 'login' && (
-                <Modal title="Acceso Administrador" onClose={closeModal}>
-                    <form className="comment-form" onSubmit={handleAdminLogin}>
-                        <label htmlFor="admin-email-input">Correo Electrónico:</label>
-                        <input
-                            id="admin-email-input"
-                            type="email"
-                            placeholder="admin@ejemplo.com"
-                            value={adminEmail}
-                            onChange={(e) => setAdminEmail(e.target.value)}
-                            required
-                        />
-                        <label htmlFor="admin-password-input">Contraseña:</label>
-                        <input
-                            id="admin-password-input"
-                            type="password"
-                            placeholder="••••••••"
-                            value={adminPassword}
-                            onChange={(e) => setAdminPassword(e.target.value)}
-                            required
-                        />
-                        <button type="submit" className="btn btn-primary">Iniciar Sesión</button>
-                    </form>
-                </Modal>
-            )}
-
             {modal === 'schedule' && (
                 <Modal title="Programa del Evento" onClose={closeModal}>
                     <ul className="schedule-list">
                         {scheduleData.map(item => (
-                             <li key={item.time}>
+                            <li key={item.time}>
                                 <strong>{item.time}</strong>
                                 <span>{item.event}</span>
                             </li>
@@ -625,16 +522,28 @@ const App = () => {
                     </ul>
                 </Modal>
             )}
+
+            {modal === 'comment' && (
+                <Modal title="Añadir Comentario" onClose={closeModal}>
+                    <form onSubmit={handleCommentSubmit} className="comment-form">
+                        <label htmlFor="center-select">Selecciona tu centro:</label>
+                        <select id="center-select" value={newComment.centerId} onChange={e => setNewComment({...newComment, centerId: e.target.value})}>
+                            {centers.map(center => <option key={center.id} value={center.id}>{center.name}</option>)}
+                        </select>
+                        <label htmlFor="comment-text">Comentario:</label>
+                        <textarea id="comment-text" value={newComment.text} onChange={e => setNewComment({...newComment, text: e.target.value})} placeholder="¿Qué te ha parecido el evento?" required></textarea>
+                        <label htmlFor="comment-author">Tu nombre:</label>
+                        <input type="text" id="comment-author" value={newComment.author} onChange={e => setNewComment({...newComment, author: e.target.value})} placeholder="Nombre y Apellidos" required />
+                        <label htmlFor="comment-email">Tu email de profesor/a:</label>
+                        <input type="email" id="comment-email" value={newComment.email} onChange={e => setNewComment({...newComment, email: e.target.value})} placeholder="Email del profesorado" required />
+                        <button type="submit" className="btn btn-secondary">Enviar comentario</button>
+                    </form>
+                </Modal>
+            )}
+
         </div>
     );
 };
 
-const rootElement = document.getElementById('root');
-if (rootElement) {
-  const root = ReactDOM.createRoot(rootElement);
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
